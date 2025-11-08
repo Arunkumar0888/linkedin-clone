@@ -51,4 +51,3 @@ Frontend runs on http://localhost:3000
 - Replace `<db_password>` with your real password **locally** or set the proper var in your deployment settings.
 - This is intentionally simple for easy testing and grading.
 
-Good luck with your assignment! — Generated for Rohit
