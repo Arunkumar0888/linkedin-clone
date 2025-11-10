@@ -1,22 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 export default function Feed() {
   const [posts, setPosts] = useState([]);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
-  const [commentText, setCommentText] = useState('');
+
+  const navigate = useNavigate();
 
   const API = (process.env.REACT_APP_API_BASE || 'http://localhost:5000') + '/api';
 
-  const user = JSON.parse(localStorage.getItem('user')) || {};
-  const userName = user.name || 'User';
+  // 🧠 Get current user info
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const userName = user?.name || 'Guest';
 
+  // ❤️ Manage liked posts locally
+  const getLikedSet = () => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem('likedPosts') || '[]'));
+    } catch {
+      return new Set();
+    }
+  };
+  const saveLikedSet = (set) => {
+    localStorage.setItem('likedPosts', JSON.stringify(Array.from(set)));
+  };
+
+  const [likedPosts, setLikedPosts] = useState(getLikedSet());
+
+  // 📨 Fetch posts
   const fetchPosts = async () => {
     setLoading(true);
     try {
       const res = await axios.get(API + '/posts');
-      setPosts(res.data);
+      // Normalize data so likes always behave as numbers
+      const normalized = (res.data || []).map((p) => ({
+        ...p,
+        likes: Number(p.likes?.length ?? p.likes ?? 0),
+        comments: Array.isArray(p.comments)
+          ? p.comments
+          : p.comments
+          ? [p.comments]
+          : [],
+      }));
+      setPosts(normalized);
     } catch (err) {
       console.error(err);
     } finally {
@@ -28,6 +56,7 @@ export default function Feed() {
     fetchPosts();
   }, []);
 
+  // 📝 Create new post
   const submit = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
@@ -45,35 +74,43 @@ export default function Feed() {
     }
   };
 
-  // Like post (local simulation only)
+  // 👍 Like or Unlike post
   const handleLike = (id) => {
     setPosts((prev) =>
-      prev.map((p) =>
-        p._id === id ? { ...p, likes: (p.likes || 0) + 1 } : p
-      )
+      prev.map((p) => {
+        if (p._id !== id) return p;
+        const likedSet = new Set(likedPosts);
+        if (likedSet.has(id)) {
+          // Unlike
+          likedSet.delete(id);
+          setLikedPosts(likedSet);
+          saveLikedSet(likedSet);
+          return { ...p, likes: Math.max(0, Number(p.likes) - 1) };
+        } else {
+          // Like
+          likedSet.add(id);
+          setLikedPosts(likedSet);
+          saveLikedSet(likedSet);
+          return { ...p, likes: Number(p.likes) + 1 };
+        }
+      })
     );
   };
 
-  // Add comment (local simulation only)
-  const handleComment = (id) => {
-    if (!commentText.trim()) return;
-    setPosts((prev) =>
-      prev.map((p) =>
-        p._id === id
-          ? {
-              ...p,
-              comments: [...(p.comments || []), { text: commentText, userName }],
-            }
-          : p
-      )
-    );
-    setCommentText('');
+  // 🚪 Logout
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/');
   };
 
   return (
     <div>
       <div className="card">
         <h2>Welcome, {userName}</h2>
+        <button onClick={handleLogout} style={{ float: 'right', marginTop: '-30px' }}>
+          Logout
+        </button>
         <form onSubmit={submit}>
           <textarea
             placeholder="What's on your mind?"
@@ -88,37 +125,30 @@ export default function Feed() {
       <div>
         <h3>Feed</h3>
         {loading && <p>Loading...</p>}
-        {posts.map((p) => (
-          <div key={p._id} className="post" style={{ borderBottom: '1px solid #ccc', marginBottom: '15px' }}>
-            <strong>{p.userName}</strong>
-            <p>{p.content}</p>
-            <small>{new Date(p.createdAt).toLocaleString()}</small>
-            <div style={{ marginTop: '10px' }}>
-              <button onClick={() => handleLike(p._id)}>👍 Like ({p.likes || 0})</button>
-            </div>
+        {posts.map((p) => {
+          const isLiked = likedPosts.has(p._id);
+          return (
+            <div
+              key={p._id}
+              className="post"
+              style={{
+                borderBottom: '1px solid #ccc',
+                marginBottom: '15px',
+                paddingBottom: '10px',
+              }}
+            >
+              <strong>{p.userName}</strong>
+              <p>{p.content}</p>
+              <small>{new Date(p.createdAt).toLocaleString()}</small>
 
-            {/* Comments Section */}
-            <div style={{ marginTop: '10px' }}>
-              <input
-                type="text"
-                placeholder="Write a comment..."
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-              />
-              <button onClick={() => handleComment(p._id)}>Comment</button>
-
-              {p.comments && p.comments.length > 0 && (
-                <ul>
-                  {p.comments.map((c, i) => (
-                    <li key={i}>
-                      <strong>{c.userName}:</strong> {c.text}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <div style={{ marginTop: '10px' }}>
+                <button onClick={() => handleLike(p._id)}>
+                  {isLiked ? '💙 Unlike' : '👍 Like'} ({p.likes || 0})
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
