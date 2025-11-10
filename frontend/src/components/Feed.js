@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import API_URL from '../config'; // ✅ Import the live backend URL
 
 export default function Feed() {
   const [posts, setPosts] = useState([]);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Get logged-in user info from localStorage
+  const user = JSON.parse(localStorage.getItem('user'));
+  const userName = user ? user.name : 'Guest';
+
+  const API = (process.env.REACT_APP_API_BASE || 'http://localhost:5000') + '/api';
+
   const fetchPosts = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/api/posts`);
+      const res = await axios.get(API + '/posts');
       setPosts(res.data);
     } catch (err) {
-      console.error('Error fetching posts:', err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -26,10 +31,10 @@ export default function Feed() {
   const submit = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
-    if (!token) return alert('Please login first.');
+    if (!token) return alert('Please login');
     try {
       await axios.post(
-        `${API_URL}/api/posts`,
+        API + '/posts',
         { content },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -37,14 +42,13 @@ export default function Feed() {
       fetchPosts();
     } catch (err) {
       alert('Post failed');
-      console.error(err);
     }
   };
 
   return (
     <div>
       <div className="card">
-        <h2>Welcome, Rohit</h2>
+        <h2>Welcome, {userName}</h2>
         <form onSubmit={submit}>
           <textarea
             placeholder="What's on your mind?"
