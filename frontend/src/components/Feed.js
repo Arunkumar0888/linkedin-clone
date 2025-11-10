@@ -5,12 +5,12 @@ export default function Feed() {
   const [posts, setPosts] = useState([]);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
-
-  // Get logged-in user info from localStorage
-  const user = JSON.parse(localStorage.getItem('user'));
-  const userName = user ? user.name : 'Guest';
+  const [commentText, setCommentText] = useState('');
 
   const API = (process.env.REACT_APP_API_BASE || 'http://localhost:5000') + '/api';
+
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const userName = user.name || 'User';
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -45,6 +45,31 @@ export default function Feed() {
     }
   };
 
+  // Like post (local simulation only)
+  const handleLike = (id) => {
+    setPosts((prev) =>
+      prev.map((p) =>
+        p._id === id ? { ...p, likes: (p.likes || 0) + 1 } : p
+      )
+    );
+  };
+
+  // Add comment (local simulation only)
+  const handleComment = (id) => {
+    if (!commentText.trim()) return;
+    setPosts((prev) =>
+      prev.map((p) =>
+        p._id === id
+          ? {
+              ...p,
+              comments: [...(p.comments || []), { text: commentText, userName }],
+            }
+          : p
+      )
+    );
+    setCommentText('');
+  };
+
   return (
     <div>
       <div className="card">
@@ -64,10 +89,34 @@ export default function Feed() {
         <h3>Feed</h3>
         {loading && <p>Loading...</p>}
         {posts.map((p) => (
-          <div key={p._id} className="post">
+          <div key={p._id} className="post" style={{ borderBottom: '1px solid #ccc', marginBottom: '15px' }}>
             <strong>{p.userName}</strong>
             <p>{p.content}</p>
             <small>{new Date(p.createdAt).toLocaleString()}</small>
+            <div style={{ marginTop: '10px' }}>
+              <button onClick={() => handleLike(p._id)}>👍 Like ({p.likes || 0})</button>
+            </div>
+
+            {/* Comments Section */}
+            <div style={{ marginTop: '10px' }}>
+              <input
+                type="text"
+                placeholder="Write a comment..."
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+              />
+              <button onClick={() => handleComment(p._id)}>Comment</button>
+
+              {p.comments && p.comments.length > 0 && (
+                <ul>
+                  {p.comments.map((c, i) => (
+                    <li key={i}>
+                      <strong>{c.userName}:</strong> {c.text}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         ))}
       </div>
